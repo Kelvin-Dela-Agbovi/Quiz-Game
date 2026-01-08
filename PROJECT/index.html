@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fun Quiz Game</title>
+<link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <canvas id="confetti"></canvas>
+
+    <div id="quiz-container">
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <h1>Fun Quiz Challenge</h1>
+            <p>10 exciting questions • 30 seconds each • Track your high score!</p>
+            <button id="start-btn">Start Quiz</button>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div id="quiz-screen" class="hidden">
+            <h1>Let's Play!</h1>
+            <div id="progress-container"><div id="progress-bar"></div></div>
+            <div class="category" id="category-display"></div>
+            <div id="timer">Time left: <span id="timer-text">30</span>s
+                <div id="timer-bar"><div id="timer-fill"></div></div>
+            </div>
+            <div id="question"></div>
+            <div id="options"></div>
+            <div id="feedback"></div>
+            <button id="next-btn">Next →</button>
+            <div id="score">Score: <span id="score-value">0</span>/10</div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden">
+            <h1>Quiz Complete! 🎉</h1>
+            <p>Your score: <strong id="final-score">0</strong>/10</p>
+            <p id="high-score-msg"></p>
+            <button id="restart-btn">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Confetti effect (self-contained)
+        function launchConfetti() {
+            const canvas = document.getElementById('confetti');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            const pieces = [];
+            const colors = ['#f72585', '#4cc9f0', '#4361ee', '#7209b7', '#ffbe0b'];
+
+            for (let i = 0; i < 250; i++) {
+                pieces.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height,
+                    size: Math.random() * 10 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speedY: Math.random() * 6 + 4,
+                    speedX: Math.random() * 6 - 3,
+                    rotation: Math.random() * 360,
+                    rotSpeed: Math.random() * 10 - 5
+                });
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let active = false;
+
+                pieces.forEach((p, idx) => {
+                    p.y += p.speedY;
+                    p.x += p.speedX;
+                    p.rotation += p.rotSpeed;
+
+ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rotation * Math.PI / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                    ctx.restore();
+
+                    if (p.y < canvas.height + 50) active = true;
+                });
+
+                if (active) requestAnimationFrame(animate);
+            }
+
+            animate();
+        }
+
+        // Questions
+        const questions = [
+            { question: "What is the capital of Australia?", options: ["Sydney", "Melbourne", "Canberra", "Brisbane"], correct: 2, category: "Geography" },
+            { question: "Which language is primarily spoken in Brazil?", options: ["Spanish", "English", "Portuguese", "French"], correct: 2, category: "Geography" },
+            { question: "Who developed the theory of relativity?", options: ["Isaac Newton", "Albert Einstein", "Galileo Galilei", "Stephen Hawking"], correct: 1, category: "Science" },
+            { question: "What is the largest planet in our solar system?", options: ["Earth", "Saturn", "Jupiter", "Neptune"], correct: 2, category: "Science" },
+            { question: "In which year did World War II end?", options: ["1943", "1945", "1950", "1939"], correct: 1, category: "History" },
+            { question: "Which company created the iPhone?", options: ["Google", "Samsung", "Apple", "Microsoft"], correct: 2, category: "Technology" },
+            { question: "What is the chemical symbol for water?", options: ["H2O", "CO2", "O2", "NaCl"], correct: 0, category: "Chemistry" },
+            { question: "How many keys are on a standard piano?", options: ["76", "88", "92", "64"], correct: 1, category: "Music" },
+            { question: "Which animal is known as the 'King of the Jungle'?", options: ["Elephant", "Tiger", "Lion", "Gorilla"], correct: 2, category: "Animals" },
+            { question: "What is the smallest country in the world by land area?", options: ["Monaco", "Vatican City", "San Marino", "Liechtenstein"], correct: 1, category: "Geography" }
+        ];
+
+        let currentQuestion = 0;
+        let score = 0;
+        let timerInterval;
+        let timeLeft = 30;
+
+        // DOM Elements
+        const screens = {
+            start: document.getElementById('start-screen'),
+            quiz: document.getElementById('quiz-screen'),
+            end: document.getElementById('end-screen')
+        };
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
+        const feedbackEl = document.getElementById('feedback');
+        const nextBtn = document.getElementById('next-btn');
+        const progressBar = document.getElementById('progress-bar');
+        const timerText = document.getElementById('timer-text');
+        const timerFill = document.getElementById('timer-fill');
+        const categoryEl = document.getElementById('category-display');
+        const scoreValueEl = document.getElementById('score-value');
+        const finalScoreEl = document.getElementById('final-score');
+        const highScoreMsg = document.getElementById('high-score-msg');
+
+        function startQuiz() {
+            screens.start.classList.add('hidden');
+            screens.quiz.classList.remove('hidden');
+            currentQuestion = 0;
+            score = 0;
+            scoreValueEl.textContent = score;
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const q = questions[currentQuestion];
+            questionEl.textContent = q.question;
+            categoryEl.textContent = q.category;
+            optionsEl.innerHTML = '';
+            feedbackEl.textContent = '';
+            nextBtn.style.display = 'none';
+
+            progressBar.style.width = `${(currentQuestion / questions.length) * 100}%`;
+
+            timeLeft = 30;
+            timerText.textContent = timeLeft;
+            timerFill.style.width = '100%';
+            timerFill.style.background = 'var(--success)';
+            clearInterval(timerInterval);
+            startTimer();
+
+            q.options.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'option';
+                btn.textContent = opt;
+                btn.onclick = () => selectAnswer(i);
+                optionsEl.appendChild(btn);
+            });
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerText.textContent = timeLeft;
+                timerFill.style.width = `${(timeLeft / 30) * 100}%`;
+
+                if (timeLeft <= 10) timerFill.style.background = 'var(--danger)';
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    timeUp();
+                }
+            }, 1000);
+        }
+
+        function timeUp() {
+            feedbackEl.textContent = "⏰ Time's up!";
+            feedbackEl.style.color = 'var(--danger)';
+            disableOptions();
+            revealCorrect();
+            nextBtn.style.display = 'block';
+        }
+
+        function selectAnswer(index) {
+            clearInterval(timerInterval);
+            const q = questions[currentQuestion];
+            const correct = q.correct;
+
+            disableOptions();
+
+            if (index === correct) {
+                score++;
+                scoreValueEl.textContent = score;
+                feedbackEl.textContent = "Correct! 🎉";
+                feedbackEl.style.color = 'var(--success)';
+                document.querySelectorAll('.option')[index].classList.add('correct');
+            } else {
+                feedbackEl.textContent = "Wrong answer!";
+                feedbackEl.style.color = 'var(--danger)';
+                document.querySelectorAll('.option')[index].classList.add('incorrect');
+                revealCorrect();
+            }
+
+            nextBtn.style.display = 'block';
+        }
+
+        function disableOptions() {
+            document.querySelectorAll('.option').forEach(btn => {
+                btn.disabled = true;
+                btn.style.cursor = 'default';
+            });
+        }
+
+        function revealCorrect() {
+            const correctIdx = questions[currentQuestion].correct;
+            document.querySelectorAll('.option')[correctIdx].classList.add('correct');
+        }
+
+        function nextQuestion() {
+            currentQuestion++;
+            if (currentQuestion < questions.length) {
+                loadQuestion();
+            } else {
+                endQuiz();
+            }
+        }
+
+        function endQuiz() {
+            clearInterval(timerInterval);
+            screens.quiz.classList.add('hidden');
+            screens.end.classList.remove('hidden');
+            finalScoreEl.textContent = score;
+
+            const high = parseInt(localStorage.getItem('quizHighScore') || '0');
+            if (score > high) {
+                localStorage.setItem('quizHighScore', score);
+                highScoreMsg.textContent = '🏆 New High Score! 🏆';
+                if (score === 10) launchConfetti();
+            } else {
+                highScoreMsg.textContent = `High Score: ${high}/10`;
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('start-btn').onclick = startQuiz;
+        nextBtn.onclick = nextQuestion;
+        document.getElementById('restart-btn').onclick = () => location.reload();
+
+        // Responsive confetti canvas
+        window.addEventListener('resize', () => {
+            document.getElementById('confetti').width = window.innerWidth;
+            document.getElementById('confetti').height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
